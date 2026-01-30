@@ -9,48 +9,48 @@ This is a SvelteKit starter kit with authentication, payments, and AI chat capab
 ## Tech Stack
 
 ### Frontend Framework
-| Tech | Version | Purpose |
-|------|---------|---------|
-| **SvelteKit** | ^2.49.1 | Full-stack framework |
-| **Svelte 5** | ^5.45.6 | UI framework (Runes syntax) |
-| **Vite** | ^7.2.6 | Build tool |
-| **TypeScript** | ^5.9.3 | Type safety |
+| Tech | Version | Purpose | Documentation |
+|------|---------|---------|---------------|
+| **SvelteKit** | ^2.49.1 | Full-stack framework | [Docs](https://kit.svelte.dev/docs) |
+| **Svelte 5** | ^5.45.6 | UI framework (Runes syntax) | [Docs](https://svelte.dev/docs/svelte) |
+| **Vite** | ^7.2.6 | Build tool | [Docs](https://vitejs.dev/) |
+| **TypeScript** | ^5.9.3 | Type safety | [Docs](https://www.typescriptlang.org/docs/) |
 
 ### Styling & UI
-| Tech | Version | Purpose |
-|------|---------|---------|
-| **Tailwind CSS v4** | ^4.1.18 | CSS framework |
-| **shadcn-svelte** | - | UI component library (125+ components) |
-| **bits-ui** | ^2.15.4 | Accessible component primitives |
-| **Lucide Icons** | ^0.562.0 | Icon library |
-| **tailwind-variants** | ^3.2.2 | Component variant management |
+| Tech | Version | Purpose | Documentation |
+|------|---------|---------|---------------|
+| **Tailwind CSS v4** | ^4.1.18 | CSS framework | [Docs](https://tailwindcss.com/docs) |
+| **shadcn-svelte** | - | UI component library (125+ components) | [Docs](https://www.shadcn-svelte.com/) |
+| **bits-ui** | ^2.15.4 | Accessible component primitives | [Docs](https://www.bits-ui.com/) |
+| **Lucide Icons** | ^0.562.0 | Icon library | [Docs](https://lucide.dev/) |
+| **tailwind-variants** | ^3.2.2 | Component variant management | [Docs](https://www.tailwind-variants.org/) |
 
 ### Backend & Database
-| Tech | Version | Purpose |
-|------|---------|---------|
-| **Drizzle ORM** | ^0.45.1 | Database ORM |
-| **Neon PostgreSQL** | ^1.0.2 | Serverless database |
+| Tech | Version | Purpose | Documentation |
+|------|---------|---------|---------------|
+| **Drizzle ORM** | ^0.45.1 | Database ORM | [Docs](https://orm.drizzle.team/docs/overview) |
+| **Neon PostgreSQL** | ^1.0.2 | Serverless database | [Docs](https://neon.tech/docs/introduction) |
 
 ### Authentication & Payments
-| Tech | Version | Purpose |
-|------|---------|---------|
-| **Better Auth** | ^1.4.12 | Authentication framework |
-| **@polar-sh/better-auth** | ^1.6.4 | Polar payment integration |
-| **@polar-sh/sdk** | ^0.42.2 | Polar API SDK |
+| Tech | Version | Purpose | Documentation |
+|------|---------|---------|---------------|
+| **Better Auth** | ^1.4.12 | Authentication framework | [Docs](https://www.better-auth.com/docs) |
+| **@polar-sh/better-auth** | ^1.6.4 | Polar payment integration | [Docs](https://docs.polar.sh/) |
+| **@polar-sh/sdk** | ^0.42.2 | Polar API SDK | [Docs](https://docs.polar.sh/) |
 
 ### AI Capabilities
-| Tech | Version | Purpose |
-|------|---------|---------|
-| **Vercel AI SDK** | ^6.0.35 | AI chat framework |
-| **@ai-sdk/openai** | ^3.0.10 | OpenAI integration |
+| Tech | Version | Purpose | Documentation |
+|------|---------|---------|---------------|
+| **Vercel AI SDK** | ^6.0.35 | AI chat framework | [Docs](https://sdk.vercel.ai/docs) |
+| **@ai-sdk/openai** | ^3.0.10 | OpenAI integration | [Docs](https://platform.openai.com/docs) |
 
 ### Storage & Others
-| Tech | Version | Purpose |
-|------|---------|---------|
-| **@aws-sdk/client-s3** | ^3.969.0 | Cloudflare R2 storage |
-| **Resend** | ^6.7.0 | Email service |
-| **canvas-confetti** | ^1.9.4 | Celebration animations |
-| **layerchart** | ^1.0.13 | Chart library |
+| Tech | Version | Purpose | Documentation |
+|------|---------|---------|---------------|
+| **@aws-sdk/client-s3** | ^3.969.0 | Cloudflare R2 storage | [AWS SDK](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/) / [R2 Docs](https://developers.cloudflare.com/r2/) |
+| **Resend** | ^6.7.0 | Email service | [Docs](https://resend.com/docs) |
+| **canvas-confetti** | ^1.9.4 | Celebration animations | [GitHub](https://github.com/catdad/canvas-confetti) |
+| **layerchart** | ^1.0.13 | Chart library | [Docs](https://www.layerchart.com/) |
 
 ## Development Commands
 

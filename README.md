@@ -320,13 +320,41 @@ Configured in `svelte.config.js`:
 
 ## 📚 Learn More
 
-- [SvelteKit Documentation](https://svelte.dev/docs/kit)
-- [Svelte 5 Documentation](https://svelte.dev/docs/svelte)
-- [Better Auth Documentation](https://better-auth.com)
-- [Polar.sh Documentation](https://docs.polar.sh)
-- [Drizzle ORM Documentation](https://orm.drizzle.team)
-- [Tailwind CSS v4 Documentation](https://tailwindcss.com/docs)
-- [Vercel AI SDK Documentation](https://sdk.vercel.ai/docs)
+### Core Framework & Language
+- [SvelteKit Documentation](https://kit.svelte.dev/docs) - Full-stack framework
+- [Svelte 5 Documentation](https://svelte.dev/docs/svelte) - UI framework with Runes
+- [TypeScript Documentation](https://www.typescriptlang.org/docs/) - Type safety
+- [Vite Documentation](https://vitejs.dev/) - Build tool
+
+### Styling & UI Components
+- [Tailwind CSS v4 Documentation](https://tailwindcss.com/docs) - Utility-first CSS
+- [shadcn-svelte Documentation](https://www.shadcn-svelte.com/) - UI component library
+- [bits-ui Documentation](https://www.bits-ui.com/) - Accessible primitives
+- [Lucide Icons](https://lucide.dev/) - Icon library
+- [tailwind-variants Documentation](https://www.tailwind-variants.org/) - Variant management
+
+### Database & ORM
+- [Drizzle ORM Documentation](https://orm.drizzle.team/docs/overview) - Type-safe ORM
+- [Neon PostgreSQL Documentation](https://neon.tech/docs/introduction) - Serverless database
+
+### Authentication & Payments
+- [Better Auth Documentation](https://www.better-auth.com/docs) - Authentication framework
+- [Polar.sh Documentation](https://docs.polar.sh/) - Subscription & payments
+- [Polar.sh Webhooks Events Documentation](https://polar.sh/docs/integrate/webhooks/events) - Subscription & payments webhooks events
+- [Google OAuth Setup](https://console.cloud.google.com/) - OAuth provider
+
+### AI Integration
+- [Vercel AI SDK Documentation](https://sdk.vercel.ai/docs) - AI chat framework
+- [OpenAI API Documentation](https://platform.openai.com/docs) - AI models
+
+### Storage & Email
+- [Cloudflare R2 Documentation](https://developers.cloudflare.com/r2/) - Object storage
+- [AWS SDK for JavaScript v3](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/) - S3-compatible client
+- [Resend Documentation](https://resend.com/docs) - Email service
+
+### Additional Libraries
+- [canvas-confetti](https://github.com/catdad/canvas-confetti) - Celebration animations
+- [LayerChart Documentation](https://www.layerchart.com/) - Chart library
 
 ## 🚀 Deployment
 
