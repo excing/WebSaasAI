@@ -112,6 +112,7 @@ src/
     │   ├── auth/[...all]    # Better Auth routes
     │   ├── chat/            # AI chat API
     │   ├── orders/          # Orders API
+    │   ├── products/        # Products API (dynamic pricing)
     │   ├── subscription/    # Subscription API
     │   └── upload-image/    # Image upload API
     └── (legal)/             # Legal pages (privacy policy, etc.)
@@ -136,6 +137,7 @@ Located in `src/lib/server/db/schema.ts`:
 | `verification` | Email verification codes |
 | `subscription` | Polar subscription data |
 | `order` | Polar one-time orders |
+| `product` | Polar product catalog (synced via webhooks) |
 | `rate_limit` | Rate limiting |
 
 ## Authentication Flow
@@ -158,7 +160,43 @@ The app integrates Polar for subscription payments:
   - `isUserSubscribed(event)` - Check if user has active subscription
   - `hasAccessToProduct(event, productId)` - Check access to specific product
   - `getUserSubscriptionStatus(event)` - Get status: 'active' | 'canceled' | 'expired' | 'none'
-- **Environment variables**: `PUBLIC_STARTER_TIER` defines the subscription product
+
+## Dynamic Product Pricing
+
+The app features a dynamic product pricing system that automatically syncs with Polar:
+
+### Product Webhook Integration
+- **Webhook handlers** in `src/lib/server/auth.ts` process `product.created` and `product.updated` events
+- Products are automatically synced to the `product` table when created/updated in Polar
+- Supports both **subscription products** and **one-time purchase products**
+- Product data includes: name, description, prices, benefits, and metadata
+
+### Product Data Flow
+1. **Polar Dashboard** → Create/update products
+2. **Webhook** → Polar sends event to your app
+3. **Database** → Product data stored in `product` table
+4. **API** → `/api/products` endpoint serves product list
+5. **UI** → `PricingTable` component displays products dynamically
+
+### PricingTable Component (`src/lib/components/pricing/PricingTable.svelte`)
+- **Dynamic rendering**: Fetches products from API instead of hardcoded data
+- **Smart categorization**: Displays subscription products first, then one-time products
+- **Responsive layout**: Adapts grid (1-3 columns) based on number of products
+- **Price formatting**: Handles multiple price types (fixed, free, custom, metered, seat-based)
+- **Current plan badge**: Shows which subscription the user is currently on
+- **Benefit display**: Lists all product benefits with checkmarks
+- **Empty states**: Graceful handling of loading and no-products scenarios
+
+### Product Store (`src/lib/stores/products.ts`)
+- Client-side state management for products
+- Caching and loading state handling
+- Prevents duplicate API calls with in-flight request tracking
+
+### Product Types (`src/lib/types/product.ts`)
+- `ProductDetails` - Complete product information
+- `ProductPrice` - Price structure with amount, currency, interval
+- `ProductBenefit` - Feature/benefit descriptions
+- `ProductsResult` - API response wrapper
 
 ## AI Chat Integration
 
@@ -182,9 +220,11 @@ Required environment variables (see `.env`):
 - `BETTER_AUTH_SECRET` - Auth encryption secret
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` - Google OAuth
 - `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET` - Polar payments
-- `PUBLIC_STARTER_TIER` - Subscription product ID
+- `POLAR_ENVIRONMENT` - Polar environment ('sandbox' or 'production')
 - `R2_UPLOAD_IMAGE_ACCESS_KEY_ID`, `R2_UPLOAD_IMAGE_SECRET_ACCESS_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `R2_UPLOAD_IMAGE_BUCKET_NAME` - Cloudflare R2
 - `OPENAI_API_KEY` - OpenAI API
+
+**Note**: `PUBLIC_STARTER_TIER` is no longer required for the pricing table to work, as products are now fetched dynamically from the database.
 
 ## Important Notes
 
@@ -195,7 +235,12 @@ The Polar client is configured in **sandbox mode** (`src/lib/server/auth.ts:24`)
 Better Auth session caching is enabled with a 5-minute TTL to reduce database queries.
 
 ### Webhook Processing
-Subscription webhooks intentionally don't throw errors on failure to avoid webhook retries. Errors are logged but the webhook returns success.
+Webhooks (subscription, order, and product events) intentionally don't throw errors on failure to avoid webhook retries. Errors are logged but the webhook returns success.
+
+**Supported webhook events:**
+- `subscription.created`, `subscription.active`, `subscription.canceled`, `subscription.revoked`, `subscription.uncanceled`, `subscription.updated`
+- `order.created`, `order.paid`, `order.updated`
+- `product.created`, `product.updated`
 
 ### Database Migrations
 After schema changes:

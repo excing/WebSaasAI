@@ -17,11 +17,14 @@ A comprehensive, production-ready SaaS starter kit built with SvelteKit, featuri
 
 ### 💳 Subscription & Billing
 - **Polar.sh** integration for subscription management
+- **Dynamic Product Pricing** - Products automatically sync from Polar via webhooks
+- Support for both subscription and one-time purchase products
 - Flexible pricing tiers with real-time updates
-- Real-time webhook processing for subscription events
+- Real-time webhook processing for subscription, order, and product events
 - Customer portal for self-service billing
 - Subscription status tracking (active, canceled, expired)
 - Payment gating with elegant overlays
+- Automatic product catalog updates without code changes
 
 ### 🤖 AI Integration
 - **Vercel AI SDK** with OpenAI integration
@@ -75,6 +78,8 @@ A comprehensive, production-ready SaaS starter kit built with SvelteKit, featuri
 │   │   └── api/              # API routes
 │   │       ├── auth/         # Better Auth endpoints
 │   │       ├── chat/         # AI chat API
+│   │       ├── products/     # Products API (dynamic pricing)
+│   │       ├── orders/       # Orders API
 │   │       ├── upload-image/ # R2 upload API
 │   │       └── subscription/ # Subscription API
 │   ├── lib/
@@ -141,7 +146,9 @@ POLAR_SUCCESS_URL=/success?checkout_id={CHECKOUT_ID}
 POLAR_WEBHOOK_SECRET=your-polar-webhook-secret
 
 # Subscriptions
-PUBLIC_STARTER_TIER=your-starter-tier-id
+# Note: PUBLIC_STARTER_TIER is no longer required for dynamic pricing
+# Products are now automatically synced from Polar via webhooks
+PUBLIC_STARTER_TIER=your-starter-tier-id  # Optional: for backwards compatibility
 
 # OpenAI
 OPENAI_API_KEY=your-openai-api-key
@@ -175,10 +182,14 @@ npx drizzle-kit studio
 - Update the public URL in `src/lib/server/upload-image.ts:25`
 
 6. **Polar.sh Setup**
-- Create products for your pricing tiers
+- Create products for your pricing tiers (both subscription and one-time products)
 - **Set up webhook endpoint**: Configure webhook URL in Polar Dashboard as `https://yourdomain.com/api/auth/polar/webhooks` (or `https://your-ngrok-url.ngrok.io/api/auth/polar/webhooks` for local development)
-- Subscribe to all subscription events (created, active, updated, canceled, etc.)
+- Subscribe to these webhook events:
+  - **Subscription events**: `subscription.created`, `subscription.active`, `subscription.updated`, `subscription.canceled`, etc.
+  - **Order events**: `order.created`, `order.paid`, `order.updated`
+  - **Product events**: `product.created`, `product.updated` (for automatic product sync)
 - Configure your pricing structure
+- Products will automatically sync to your database when created/updated in Polar
 - Note: The Polar client is in **sandbox mode** by default (change in `src/lib/server/auth.ts:12` for production)
 
 7. **Google OAuth Setup**
@@ -207,6 +218,19 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000) to see your application.
 
 ## 🎯 Key Features Explained
+
+### Dynamic Product Pricing
+- **Automatic Sync**: Products created in Polar automatically sync to your database via webhooks
+- **Product Types**: Supports both subscription products and one-time purchases
+- **Smart Display**: PricingTable component automatically categorizes and displays products
+  - Subscription products shown first
+  - One-time products shown second
+  - Responsive grid layout (1-3 columns)
+- **Price Flexibility**: Handles multiple price types (fixed, free, custom, metered, seat-based)
+- **Real-time Updates**: Product changes in Polar instantly reflect in your app
+- **No Code Changes**: Add/update products in Polar without touching code
+- **API Endpoint**: `/api/products` serves the product catalog
+- **Type Safety**: Full TypeScript support with `ProductDetails`, `ProductPrice`, and `ProductBenefit` types
 
 ### Subscription Management
 - Automatic subscription status checking via `getSubscriptionDetails()`
@@ -335,13 +359,18 @@ npm run preview
 
 ### Database Schema
 - Better Auth tables: `user`, `session`, `account`, `verification`
-- Subscription table: Stores Polar subscription data synced via webhooks
+- Payment tables: `subscription`, `order`, `product` (synced via Polar webhooks)
+- Rate limiting table: `rate_limit`
 - After schema changes, always run `npx drizzle-kit generate` to create migrations
 
 ### Webhook Processing
-- Subscription webhooks intentionally don't throw errors on failure to avoid webhook retries
+- Webhooks (subscription, order, and product events) intentionally don't throw errors on failure to avoid webhook retries
 - Errors are logged but the webhook returns success
 - Webhook endpoint bypasses authentication checks
+- **Supported events**:
+  - `subscription.created`, `subscription.active`, `subscription.updated`, `subscription.canceled`, `subscription.revoked`, `subscription.uncanceled`
+  - `order.created`, `order.paid`, `order.updated`
+  - `product.created`, `product.updated`
 
 ## 📄 License
 
