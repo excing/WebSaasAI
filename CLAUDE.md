@@ -224,8 +224,6 @@ Required environment variables (see `.env`):
 - `R2_UPLOAD_IMAGE_ACCESS_KEY_ID`, `R2_UPLOAD_IMAGE_SECRET_ACCESS_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `R2_UPLOAD_IMAGE_BUCKET_NAME` - Cloudflare R2
 - `OPENAI_API_KEY` - OpenAI API
 
-**Note**: `PUBLIC_STARTER_TIER` is no longer required for the pricing table to work, as products are now fetched dynamically from the database.
-
 ## Important Notes
 
 ### Polar Configuration

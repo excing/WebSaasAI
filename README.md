@@ -145,11 +145,6 @@ POLAR_ACCESS_TOKEN=your-polar-access-token
 POLAR_SUCCESS_URL=/success?checkout_id={CHECKOUT_ID}
 POLAR_WEBHOOK_SECRET=your-polar-webhook-secret
 
-# Subscriptions
-# Note: PUBLIC_STARTER_TIER is no longer required for dynamic pricing
-# Products are now automatically synced from Polar via webhooks
-PUBLIC_STARTER_TIER=your-starter-tier-id  # Optional: for backwards compatibility
-
 # OpenAI
 OPENAI_API_KEY=your-openai-api-key
 
