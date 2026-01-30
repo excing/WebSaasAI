@@ -112,6 +112,22 @@ export const order = pgTable('order', {
     userId: text('userId').references(() => user.id)
 });
 
+// Product table for Polar product data (synced via webhooks)
+export const product = pgTable('product', {
+    id: text('id').primaryKey(),
+    createdAt: timestamp('createdAt').notNull(),
+    modifiedAt: timestamp('modifiedAt'),
+    name: text('name').notNull(),
+    description: text('description'),
+    isRecurring: boolean('isRecurring').notNull().default(false),
+    isArchived: boolean('isArchived').notNull().default(false),
+    recurringInterval: text('recurringInterval'), // 'month' | 'year' | null for one-time
+    organizationId: text('organizationId').notNull(),
+    prices: text('prices').notNull(), // JSON string of prices array
+    benefits: text('benefits').notNull().default('[]'), // JSON string of benefits array
+    metadata: text('metadata'), // JSON string
+});
+
 export const rateLimit = pgTable("rate_limit", {
     id: text("id").primaryKey(),
     key: text("key"),

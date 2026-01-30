@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { account, session, subscription, order, user, verification, rateLimit } from '$lib/server/db/schema';
+import { account, session, subscription, order, user, verification, rateLimit, product } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { checkout, polar, portal, usage, webhooks } from '@polar-sh/better-auth';
 import { Polar } from '@polar-sh/sdk';
@@ -302,6 +302,94 @@ export const auth = betterAuth({
                                 console.log('✅ Upserted order:', data.id);
                             } catch (error) {
                                 console.error('💥 Error processing order webhook:', error);
+                            }
+                        }
+
+                        // Handle product events for product sync
+                        if (
+                            type === 'product.created' ||
+                            type === 'product.updated'
+                        ) {
+                            console.log('🎯 Processing product webhook:', type);
+                            console.log('📦 Payload data:', JSON.stringify(data, null, 2));
+
+                            try {
+                                // Extract price info from prices array
+                                const prices = data.prices?.map((p: {
+                                    id: string;
+                                    amountType: string;
+                                    priceAmount?: number;
+                                    priceCurrency?: string;
+                                    recurringInterval?: string | null;
+                                    isArchived?: boolean;
+                                    type?: string;
+                                }) => ({
+                                    id: p.id,
+                                    amountType: p.amountType,
+                                    priceAmount: p.priceAmount,
+                                    priceCurrency: p.priceCurrency,
+                                    recurringInterval: p.recurringInterval,
+                                    isArchived: p.isArchived,
+                                    type: p.type,
+                                })) || [];
+
+                                // Extract benefit info from benefits array
+                                const benefits = data.benefits?.map((b: {
+                                    id: string;
+                                    type: string;
+                                    description: string;
+                                }) => ({
+                                    id: b.id,
+                                    type: b.type,
+                                    description: b.description,
+                                })) || [];
+
+                                const productData = {
+                                    id: data.id,
+                                    createdAt: new Date(data.createdAt),
+                                    modifiedAt: safeParseDate(data.modifiedAt),
+                                    name: data.name,
+                                    description: data.description || null,
+                                    isRecurring: data.isRecurring || false,
+                                    isArchived: data.isArchived || false,
+                                    recurringInterval: data.recurringInterval || null,
+                                    organizationId: data.organizationId,
+                                    prices: JSON.stringify(prices),
+                                    benefits: JSON.stringify(benefits),
+                                    metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+                                };
+
+                                console.log('💾 Final product data:', {
+                                    id: productData.id,
+                                    name: productData.name,
+                                    isRecurring: productData.isRecurring,
+                                    isArchived: productData.isArchived,
+                                    pricesCount: prices.length,
+                                    benefitsCount: benefits.length,
+                                });
+
+                                await db
+                                    .insert(product)
+                                    .values(productData)
+                                    .onConflictDoUpdate({
+                                        target: product.id,
+                                        set: {
+                                            modifiedAt: productData.modifiedAt || new Date(),
+                                            name: productData.name,
+                                            description: productData.description,
+                                            isRecurring: productData.isRecurring,
+                                            isArchived: productData.isArchived,
+                                            recurringInterval: productData.recurringInterval,
+                                            organizationId: productData.organizationId,
+                                            prices: productData.prices,
+                                            benefits: productData.benefits,
+                                            metadata: productData.metadata,
+                                        }
+                                    });
+
+                                console.log('✅ Upserted product:', data.id);
+                            } catch (error) {
+                                console.error('💥 Error processing product webhook:', error);
                             }
                         }
                     }
