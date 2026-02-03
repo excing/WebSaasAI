@@ -459,8 +459,9 @@ export const auth = betterAuth({
 
                                 console.log('✅ Upserted order:', data.id);
 
-                                // STEP 4: Handle credit package creation from product metadata for one-time purchases
-                                if (userId && data.product?.metadata && data.paid) {
+                                // STEP 4: Handle credit package creation from product metadata for one-time purchases ONLY
+                                // Skip orders that are part of a subscription (subscriptionId is present)
+                                if (userId && data.product?.metadata && data.paid && !data.subscriptionId) {
                                     try {
                                         const metadata = typeof data.product.metadata === 'string'
                                             ? JSON.parse(data.product.metadata)
@@ -472,7 +473,7 @@ export const auth = betterAuth({
                                         );
 
                                         if (credits && credits > 0) {
-                                            console.log('💳 Creating credit package for order:', {
+                                            console.log('💳 Creating credit package for one-time order:', {
                                                 orderId: data.id,
                                                 credits,
                                                 validityPeriodDays,
