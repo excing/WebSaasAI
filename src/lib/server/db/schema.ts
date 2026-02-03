@@ -151,3 +151,19 @@ export const creditPackage = pgTable('credit_package', {
     createdAt: timestamp('createdAt').notNull().defaultNow(),
     updatedAt: timestamp('updatedAt').notNull().defaultNow()
 });
+
+// Credit transaction table for tracking credit consumption history
+export const creditTransaction = pgTable('credit_transaction', {
+    id: text('id').primaryKey(),
+    userId: text('userId')
+        .notNull()
+        .references(() => user.id, { onDelete: 'cascade' }),
+    packageId: text('packageId')
+        .notNull()
+        .references(() => creditPackage.id, { onDelete: 'cascade' }),
+    amount: integer('amount').notNull(), // Amount of credits consumed (positive number)
+    type: text('type').notNull(), // 'chat' | 'image' | 'other'
+    description: text('description'), // Optional description (e.g., "AI Chat - 1234 tokens")
+    metadata: text('metadata'), // JSON string for additional data (e.g., token count, model used)
+    createdAt: timestamp('createdAt').notNull().defaultNow()
+});

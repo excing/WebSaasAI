@@ -9,6 +9,7 @@
         Upload,
         Banknote,
         Settings,
+        Coins,
     } from "lucide-svelte";
 
     interface NavItem {
@@ -27,6 +28,11 @@
             label: "Chat",
             href: "/dashboard/chat",
             icon: MessageCircle,
+        },
+        {
+            label: "My Credits",
+            href: "/dashboard/credits",
+            icon: Coins,
         },
         {
             label: "Upload",

@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
-import { creditPackage } from '$lib/server/db/schema';
-import { eq, and, gt, asc, lte } from 'drizzle-orm';
+import { creditPackage, creditTransaction } from '$lib/server/db/schema';
+import { eq, and, gt, asc, lte, desc } from 'drizzle-orm';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export interface CreditPackage {
@@ -20,6 +20,17 @@ export interface CreditPackage {
 export interface CreditSummary {
     totalCredits: number;
     packages: CreditPackage[];
+}
+
+export interface CreditTransaction {
+    id: string;
+    userId: string;
+    packageId: string;
+    amount: number;
+    type: 'chat' | 'image' | 'other';
+    description: string | null;
+    metadata: string | null;
+    createdAt: Date;
 }
 
 /**
@@ -72,9 +83,18 @@ export async function getUserCreditSummary(userId: string): Promise<CreditSummar
  *
  * @param userId - User ID
  * @param amount - Amount of credits to consume
+ * @param type - Type of consumption ('chat' | 'image' | 'other')
+ * @param description - Optional description
+ * @param metadata - Optional metadata (will be JSON stringified)
  * @returns true if successful, false if insufficient credits
  */
-export async function consumeCredits(userId: string, amount: number): Promise<boolean> {
+export async function consumeCredits(
+    userId: string,
+    amount: number,
+    type: 'chat' | 'image' | 'other' = 'other',
+    description?: string,
+    metadata?: Record<string, any>
+): Promise<boolean> {
     if (amount <= 0) {
         throw new Error('Amount must be greater than 0');
     }
@@ -106,6 +126,18 @@ export async function consumeCredits(userId: string, amount: number): Promise<bo
                 updatedAt: new Date()
             })
             .where(eq(creditPackage.id, pkg.id));
+
+        // Record transaction
+        await db.insert(creditTransaction).values({
+            id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            userId,
+            packageId: pkg.id,
+            amount: toConsume,
+            type,
+            description: description || null,
+            metadata: metadata ? JSON.stringify(metadata) : null,
+            createdAt: new Date()
+        });
 
         remainingToConsume -= toConsume;
 
@@ -157,12 +189,47 @@ export async function getUserCreditsFromEvent(event: RequestEvent): Promise<Cred
  */
 export async function consumeCreditsFromEvent(
     event: RequestEvent,
-    amount: number
+    amount: number,
+    type: 'chat' | 'image' | 'other' = 'other',
+    description?: string,
+    metadata?: Record<string, any>
 ): Promise<boolean> {
     const session = event.locals.session;
     if (!session?.user?.id) {
         return false;
     }
 
-    return await consumeCredits(session.user.id, amount);
+    return await consumeCredits(session.user.id, amount, type, description, metadata);
+}
+
+/**
+ * Get user's credit transaction history
+ */
+export async function getUserCreditTransactions(
+    userId: string,
+    limit: number = 50
+): Promise<CreditTransaction[]> {
+    const transactions = await db
+        .select()
+        .from(creditTransaction)
+        .where(eq(creditTransaction.userId, userId))
+        .orderBy(desc(creditTransaction.createdAt))
+        .limit(limit);
+
+    return transactions as CreditTransaction[];
+}
+
+/**
+ * Helper function to get user credit transactions from RequestEvent
+ */
+export async function getUserCreditTransactionsFromEvent(
+    event: RequestEvent,
+    limit: number = 50
+): Promise<CreditTransaction[] | null> {
+    const session = event.locals.session;
+    if (!session?.user?.id) {
+        return null;
+    }
+
+    return await getUserCreditTransactions(session.user.id, limit);
 }
