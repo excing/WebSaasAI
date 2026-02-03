@@ -134,3 +134,20 @@ export const rateLimit = pgTable("rate_limit", {
     count: integer("count"),
     lastRequest: bigint("last_request", { mode: "number" }),
 });
+
+// Credit package table for managing user credits from subscriptions and one-time purchases
+export const creditPackage = pgTable('credit_package', {
+    id: text('id').primaryKey(),
+    userId: text('userId')
+        .notNull()
+        .references(() => user.id, { onDelete: 'cascade' }),
+    sourceType: text('sourceType').notNull(), // 'subscription' | 'order'
+    sourceId: text('sourceId').notNull(), // subscription.id or order.id
+    credits: integer('credits').notNull(), // Initial credit amount
+    remainingCredits: integer('remainingCredits').notNull(), // Remaining credit amount
+    validityPeriod: integer('validityPeriod'), // Validity period in days (optional)
+    expiresAt: timestamp('expiresAt').notNull(), // Expiration timestamp
+    status: text('status').notNull().default('active'), // 'active' | 'expired' | 'depleted'
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow()
+});

@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { account, session, subscription, order, user, verification, rateLimit, product } from '$lib/server/db/schema';
+import { account, session, subscription, order, user, verification, rateLimit, product, creditPackage } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { checkout, polar, portal, usage, webhooks } from '@polar-sh/better-auth';
 import { Polar } from '@polar-sh/sdk';
@@ -211,6 +211,80 @@ export const auth = betterAuth({
                                     });
 
                                 console.log('✅ Upserted subscription:', data.id);
+
+                                // STEP 4: Handle credit package creation from metadata
+                                if (userId && data.metadata) {
+                                    try {
+                                        const metadata = typeof data.metadata === 'string'
+                                            ? JSON.parse(data.metadata)
+                                            : data.metadata;
+
+                                        const credits = metadata.credits;
+                                        const validityPeriod = metadata.validity_period;
+
+                                        if (credits && typeof credits === 'number') {
+                                            console.log('💳 Creating credit package for subscription:', {
+                                                subscriptionId: data.id,
+                                                credits,
+                                                validityPeriod
+                                            });
+
+                                            // Calculate expiration date
+                                            let expiresAt: Date;
+                                            if (validityPeriod && typeof validityPeriod === 'number') {
+                                                // Use validity_period (in days) from metadata
+                                                expiresAt = new Date();
+                                                expiresAt.setDate(expiresAt.getDate() + validityPeriod);
+                                            } else {
+                                                // Use subscription's currentPeriodEnd
+                                                expiresAt = subscriptionData.currentPeriodEnd;
+                                            }
+
+                                            // Generate unique ID for credit package
+                                            const creditPackageId = `cp_sub_${data.id}_${Date.now()}`;
+
+                                            // Check if credit package already exists for this subscription
+                                            const existingPackage = await db
+                                                .select()
+                                                .from(creditPackage)
+                                                .where(eq(creditPackage.sourceId, data.id))
+                                                .limit(1);
+
+                                            if (existingPackage.length > 0) {
+                                                // Update existing package
+                                                await db
+                                                    .update(creditPackage)
+                                                    .set({
+                                                        credits,
+                                                        expiresAt,
+                                                        validityPeriod: validityPeriod || null,
+                                                        updatedAt: new Date()
+                                                    })
+                                                    .where(eq(creditPackage.sourceId, data.id));
+
+                                                console.log('✅ Updated credit package for subscription:', data.id);
+                                            } else {
+                                                // Create new package
+                                                await db.insert(creditPackage).values({
+                                                    id: creditPackageId,
+                                                    userId: userId as string,
+                                                    sourceType: 'subscription',
+                                                    sourceId: data.id,
+                                                    credits,
+                                                    remainingCredits: credits,
+                                                    validityPeriod: validityPeriod || null,
+                                                    expiresAt,
+                                                    status: 'active'
+                                                });
+
+                                                console.log('✅ Created credit package:', creditPackageId);
+                                            }
+                                        }
+                                    } catch (creditError) {
+                                        console.error('💥 Error processing credit package for subscription:', creditError);
+                                        // Don't throw - let webhook succeed
+                                    }
+                                }
                             } catch (error) {
                                 console.error('💥 Error processing subscription webhook:', error);
                                 // Don't throw - let webhook succeed to avoid retries
@@ -300,6 +374,81 @@ export const auth = betterAuth({
                                     });
 
                                 console.log('✅ Upserted order:', data.id);
+
+                                // STEP 4: Handle credit package creation from metadata for one-time purchases
+                                if (userId && data.metadata && data.paid) {
+                                    try {
+                                        const metadata = typeof data.metadata === 'string'
+                                            ? JSON.parse(data.metadata)
+                                            : data.metadata;
+
+                                        const credits = metadata.credits;
+                                        const validityPeriod = metadata.validity_period;
+
+                                        if (credits && typeof credits === 'number') {
+                                            console.log('💳 Creating credit package for order:', {
+                                                orderId: data.id,
+                                                credits,
+                                                validityPeriod
+                                            });
+
+                                            // Calculate expiration date
+                                            let expiresAt: Date;
+                                            if (validityPeriod && typeof validityPeriod === 'number') {
+                                                // Use validity_period (in days) from metadata
+                                                expiresAt = new Date();
+                                                expiresAt.setDate(expiresAt.getDate() + validityPeriod);
+                                            } else {
+                                                // Default to 1 year from now if no validity period specified
+                                                expiresAt = new Date();
+                                                expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+                                            }
+
+                                            // Generate unique ID for credit package
+                                            const creditPackageId = `cp_ord_${data.id}_${Date.now()}`;
+
+                                            // Check if credit package already exists for this order
+                                            const existingPackage = await db
+                                                .select()
+                                                .from(creditPackage)
+                                                .where(eq(creditPackage.sourceId, data.id))
+                                                .limit(1);
+
+                                            if (existingPackage.length > 0) {
+                                                // Update existing package
+                                                await db
+                                                    .update(creditPackage)
+                                                    .set({
+                                                        credits,
+                                                        expiresAt,
+                                                        validityPeriod: validityPeriod || null,
+                                                        updatedAt: new Date()
+                                                    })
+                                                    .where(eq(creditPackage.sourceId, data.id));
+
+                                                console.log('✅ Updated credit package for order:', data.id);
+                                            } else {
+                                                // Create new package (only for paid orders)
+                                                await db.insert(creditPackage).values({
+                                                    id: creditPackageId,
+                                                    userId: userId as string,
+                                                    sourceType: 'order',
+                                                    sourceId: data.id,
+                                                    credits,
+                                                    remainingCredits: credits,
+                                                    validityPeriod: validityPeriod || null,
+                                                    expiresAt,
+                                                    status: 'active'
+                                                });
+
+                                                console.log('✅ Created credit package:', creditPackageId);
+                                            }
+                                        }
+                                    } catch (creditError) {
+                                        console.error('💥 Error processing credit package for order:', creditError);
+                                        // Don't throw - let webhook succeed
+                                    }
+                                }
                             } catch (error) {
                                 console.error('💥 Error processing order webhook:', error);
                             }
