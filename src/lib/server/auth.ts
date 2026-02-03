@@ -27,6 +27,87 @@ function safeParseDate(value: string | Date | null | undefined): Date | null {
     return new Date(value);
 }
 
+/**
+ * Parse credits from various formats
+ * @param creditsRaw - Credits value (number or string like "0100", "1000")
+ * @returns Parsed credits as number, or null if invalid
+ * @example
+ * parseCredits(100) // 100
+ * parseCredits("0100") // 100
+ * parseCredits("1000") // 1000
+ */
+function parseCredits(creditsRaw: unknown): number | null {
+    if (!creditsRaw) return null;
+
+    if (typeof creditsRaw === 'number') {
+        return creditsRaw;
+    }
+
+    if (typeof creditsRaw === 'string') {
+        const parsed = parseInt(creditsRaw, 10);
+        return isNaN(parsed) ? null : parsed;
+    }
+
+    return null;
+}
+
+/**
+ * Parse validity period and calculate expiration date
+ * @param validityPeriodRaw - Validity period (number in days, or string like "3m", "1y", "30d")
+ * @param fallbackDate - Optional fallback date if no validity period specified
+ * @returns Object with expiresAt date and validityPeriodDays (approximate)
+ * @example
+ * parseValidityPeriod("3m") // { expiresAt: Date (3 months later), validityPeriodDays: 90 }
+ * parseValidityPeriod("1y") // { expiresAt: Date (1 year later), validityPeriodDays: 365 }
+ * parseValidityPeriod("30") // { expiresAt: Date (30 days later), validityPeriodDays: 30 }
+ * parseValidityPeriod(30) // { expiresAt: Date (30 days later), validityPeriodDays: 30 }
+ */
+function parseValidityPeriod(
+    validityPeriodRaw: unknown,
+    fallbackDate?: Date
+): { expiresAt: Date; validityPeriodDays: number | null } {
+    let expiresAt: Date = new Date();
+    let validityPeriodDays: number | null = null;
+
+    if (validityPeriodRaw) {
+        if (typeof validityPeriodRaw === 'number') {
+            // If it's a number, treat as days
+            validityPeriodDays = validityPeriodRaw;
+            expiresAt.setDate(expiresAt.getDate() + validityPeriodRaw);
+        } else if (typeof validityPeriodRaw === 'string') {
+            // Parse string format: "3m", "1y", "30d", "30"
+            const match = validityPeriodRaw.match(/^(\d+)([myd]?)$/i);
+            if (match) {
+                const value = parseInt(match[1], 10);
+                const unit = match[2]?.toLowerCase() || 'd';
+
+                if (unit === 'm') {
+                    // Natural months
+                    expiresAt.setMonth(expiresAt.getMonth() + value);
+                    validityPeriodDays = value * 30; // Approximate for storage
+                } else if (unit === 'y') {
+                    // Natural years
+                    expiresAt.setFullYear(expiresAt.getFullYear() + value);
+                    validityPeriodDays = value * 365; // Approximate for storage
+                } else {
+                    // Days
+                    expiresAt.setDate(expiresAt.getDate() + value);
+                    validityPeriodDays = value;
+                }
+            }
+        }
+    } else if (fallbackDate) {
+        // Use fallback date if provided
+        expiresAt = fallbackDate;
+    } else {
+        // Default to 1 natural year if no validity period specified
+        expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+        validityPeriodDays = 365;
+    }
+
+    return { expiresAt, validityPeriodDays };
+}
+
 const polarClient = new Polar({
     accessToken: POLAR_ACCESS_TOKEN,
     server: POLAR_ENVIRONMENT
@@ -213,32 +294,29 @@ export const auth = betterAuth({
                                 console.log('✅ Upserted subscription:', data.id);
 
                                 // STEP 4: Handle credit package creation from metadata
-                                if (userId && data.metadata) {
+                                // Try subscription metadata first, then fall back to product metadata
+                                const metadataSource = data.metadata || data.product?.metadata;
+                                if (userId && metadataSource) {
                                     try {
-                                        const metadata = typeof data.metadata === 'string'
-                                            ? JSON.parse(data.metadata)
-                                            : data.metadata;
+                                        const metadata = typeof metadataSource === 'string'
+                                            ? JSON.parse(metadataSource)
+                                            : metadataSource;
 
-                                        const credits = metadata.credits;
-                                        const validityPeriod = metadata.validity_period;
+                                        const credits = parseCredits(metadata.credits);
+                                        const { expiresAt, validityPeriodDays } = parseValidityPeriod(
+                                            metadata.validity_period,
+                                            subscriptionData.currentPeriodEnd
+                                        );
 
-                                        if (credits && typeof credits === 'number') {
+                                        if (credits && credits > 0) {
                                             console.log('💳 Creating credit package for subscription:', {
                                                 subscriptionId: data.id,
                                                 credits,
-                                                validityPeriod
+                                                validityPeriodDays,
+                                                expiresAt: expiresAt.toISOString(),
+                                                rawCredits: metadata.credits,
+                                                rawValidityPeriod: metadata.validity_period
                                             });
-
-                                            // Calculate expiration date
-                                            let expiresAt: Date;
-                                            if (validityPeriod && typeof validityPeriod === 'number') {
-                                                // Use validity_period (in days) from metadata
-                                                expiresAt = new Date();
-                                                expiresAt.setDate(expiresAt.getDate() + validityPeriod);
-                                            } else {
-                                                // Use subscription's currentPeriodEnd
-                                                expiresAt = subscriptionData.currentPeriodEnd;
-                                            }
 
                                             // Generate unique ID for credit package
                                             const creditPackageId = `cp_sub_${data.id}_${Date.now()}`;
@@ -257,7 +335,7 @@ export const auth = betterAuth({
                                                     .set({
                                                         credits,
                                                         expiresAt,
-                                                        validityPeriod: validityPeriod || null,
+                                                        validityPeriod: validityPeriodDays,
                                                         updatedAt: new Date()
                                                     })
                                                     .where(eq(creditPackage.sourceId, data.id));
@@ -272,7 +350,7 @@ export const auth = betterAuth({
                                                     sourceId: data.id,
                                                     credits,
                                                     remainingCredits: credits,
-                                                    validityPeriod: validityPeriod || null,
+                                                    validityPeriod: validityPeriodDays,
                                                     expiresAt,
                                                     status: 'active'
                                                 });
@@ -375,34 +453,27 @@ export const auth = betterAuth({
 
                                 console.log('✅ Upserted order:', data.id);
 
-                                // STEP 4: Handle credit package creation from metadata for one-time purchases
-                                if (userId && data.metadata && data.paid) {
+                                // STEP 4: Handle credit package creation from product metadata for one-time purchases
+                                if (userId && data.product?.metadata && data.paid) {
                                     try {
-                                        const metadata = typeof data.metadata === 'string'
-                                            ? JSON.parse(data.metadata)
-                                            : data.metadata;
+                                        const metadata = typeof data.product.metadata === 'string'
+                                            ? JSON.parse(data.product.metadata)
+                                            : data.product.metadata;
 
-                                        const credits = metadata.credits;
-                                        const validityPeriod = metadata.validity_period;
+                                        const credits = parseCredits(metadata.credits);
+                                        const { expiresAt, validityPeriodDays } = parseValidityPeriod(
+                                            metadata.validity_period
+                                        );
 
-                                        if (credits && typeof credits === 'number') {
+                                        if (credits && credits > 0) {
                                             console.log('💳 Creating credit package for order:', {
                                                 orderId: data.id,
                                                 credits,
-                                                validityPeriod
+                                                validityPeriodDays,
+                                                expiresAt: expiresAt.toISOString(),
+                                                rawCredits: metadata.credits,
+                                                rawValidityPeriod: metadata.validity_period
                                             });
-
-                                            // Calculate expiration date
-                                            let expiresAt: Date;
-                                            if (validityPeriod && typeof validityPeriod === 'number') {
-                                                // Use validity_period (in days) from metadata
-                                                expiresAt = new Date();
-                                                expiresAt.setDate(expiresAt.getDate() + validityPeriod);
-                                            } else {
-                                                // Default to 1 year from now if no validity period specified
-                                                expiresAt = new Date();
-                                                expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-                                            }
 
                                             // Generate unique ID for credit package
                                             const creditPackageId = `cp_ord_${data.id}_${Date.now()}`;
@@ -421,7 +492,7 @@ export const auth = betterAuth({
                                                     .set({
                                                         credits,
                                                         expiresAt,
-                                                        validityPeriod: validityPeriod || null,
+                                                        validityPeriod: validityPeriodDays,
                                                         updatedAt: new Date()
                                                     })
                                                     .where(eq(creditPackage.sourceId, data.id));
@@ -436,7 +507,7 @@ export const auth = betterAuth({
                                                     sourceId: data.id,
                                                     credits,
                                                     remainingCredits: credits,
-                                                    validityPeriod: validityPeriod || null,
+                                                    validityPeriod: validityPeriodDays,
                                                     expiresAt,
                                                     status: 'active'
                                                 });
