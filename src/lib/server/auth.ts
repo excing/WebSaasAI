@@ -354,8 +354,10 @@ export const auth = betterAuth({
                                                 (type === 'subscription.updated' && isRenewal) ||
                                                 type === 'subscription.uncanceled';
 
-                                            const shouldDeactivate =
-                                                type === 'subscription.canceled' ||
+                                            const shouldCancelAtPeriodEnd =
+                                                type === 'subscription.canceled';
+
+                                            const shouldRevokeImmediately =
                                                 type === 'subscription.revoked';
 
                                             if (existingPackage) {
@@ -372,10 +374,16 @@ export const auth = betterAuth({
                                                     updateData.remainingCredits = credits;
                                                     updateData.status = 'active';
                                                     console.log('🔄 Resetting credits for subscription:', data.id, 'Reason:', type, isRenewal ? '(renewal)' : '');
-                                                } else if (shouldDeactivate) {
+                                                } else if (shouldRevokeImmediately) {
+                                                    // Revoked (refund): immediately expire the credit package
+                                                    updateData.status = 'expired';
+                                                    updateData.expiresAt = new Date(); // Set to now
+                                                    console.log('🚫 Subscription revoked (refund), immediately expiring credit package:', data.id);
+                                                } else if (shouldCancelAtPeriodEnd) {
+                                                    // Canceled: keep current state, expire at period end
                                                     // Don't reset credits on cancellation, just keep current state
                                                     // The package will expire naturally at currentPeriodEnd
-                                                    console.log('⏸️  Subscription canceled/revoked, keeping current credits until expiration:', data.id);
+                                                    console.log('⏸️  Subscription canceled, keeping current credits until period end:', data.id);
                                                 } else {
                                                     // For other updates (e.g., metadata changes), update credit amount if changed
                                                     // but preserve remaining credits proportionally
@@ -430,7 +438,8 @@ export const auth = betterAuth({
                         if (
                             type === 'order.created' ||
                             type === 'order.paid' ||
-                            type === 'order.updated'
+                            type === 'order.updated' ||
+                            type === 'order.refunded'
                         ) {
                             console.log('🎯 Processing order webhook:', type);
                             console.log('📦 Payload data:', JSON.stringify(data, null, 2));
@@ -513,9 +522,38 @@ export const auth = betterAuth({
 
                                 console.log('✅ Upserted order:', data.id);
 
+                                // Handle refunded orders: immediately expire credit package
+                                if (type === 'order.refunded' && userId) {
+                                    try {
+                                        // Find credit package for this order
+                                        const existingPackages = await db
+                                            .select()
+                                            .from(creditPackage)
+                                            .where(eq(creditPackage.sourceId, data.id))
+                                            .limit(1);
+
+                                        if (existingPackages.length > 0) {
+                                            // Immediately expire the credit package
+                                            await db
+                                                .update(creditPackage)
+                                                .set({
+                                                    status: 'expired',
+                                                    expiresAt: new Date(), // Set to now
+                                                    updatedAt: new Date()
+                                                })
+                                                .where(eq(creditPackage.sourceId, data.id));
+
+                                            console.log('🚫 Order refunded, immediately expired credit package:', data.id);
+                                        }
+                                    } catch (creditError) {
+                                        console.error('💥 Error expiring credit package for refunded order:', creditError);
+                                        // Don't throw - let webhook succeed
+                                    }
+                                }
+
                                 // STEP 4: Handle credit package creation from product metadata for one-time purchases ONLY
                                 // Skip orders that are part of a subscription (subscriptionId is present)
-                                if (userId && data.product?.metadata && data.paid && !data.subscriptionId) {
+                                if (userId && data.product?.metadata && data.paid && !data.subscriptionId && type !== 'order.refunded') {
                                     try {
                                         const metadata = typeof data.product.metadata === 'string'
                                             ? JSON.parse(data.product.metadata)
