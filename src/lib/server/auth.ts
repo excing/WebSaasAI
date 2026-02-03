@@ -293,7 +293,7 @@ export const auth = betterAuth({
 
                                 console.log('✅ Upserted subscription:', data.id);
 
-                                // STEP 4: Handle credit package creation from metadata
+                                // STEP 4: Handle credit package creation/update from metadata
                                 // Try subscription metadata first, then fall back to product metadata
                                 const metadataSource = data.metadata || data.product?.metadata;
                                 if (userId && metadataSource) {
@@ -310,8 +310,10 @@ export const auth = betterAuth({
                                         const validityPeriodDays = null; // Not applicable for subscriptions
 
                                         if (credits && credits > 0) {
-                                            console.log('💳 Creating credit package for subscription:', {
+                                            console.log('💳 Processing credit package for subscription:', {
                                                 subscriptionId: data.id,
+                                                eventType: type,
+                                                status: data.status,
                                                 credits,
                                                 expiresAt: expiresAt.toISOString(),
                                                 currentPeriodStart: subscriptionData.currentPeriodStart.toISOString(),
@@ -319,33 +321,85 @@ export const auth = betterAuth({
                                                 rawCredits: metadata.credits
                                             });
 
-                                            // Generate unique ID for credit package
-                                            const creditPackageId = `cp_sub_${data.id}_${Date.now()}`;
-
                                             // Check if credit package already exists for this subscription
-                                            const existingPackage = await db
+                                            const existingPackages = await db
                                                 .select()
                                                 .from(creditPackage)
                                                 .where(eq(creditPackage.sourceId, data.id))
                                                 .limit(1);
 
-                                            if (existingPackage.length > 0) {
-                                                // Update existing package: reset credits and extend expiration
+                                            const existingPackage = existingPackages[0];
+
+                                            // Determine if this is a renewal (currentPeriodStart changed)
+                                            let isRenewal = false;
+                                            if (existingPackage) {
+                                                // Get the previous subscription data to compare currentPeriodStart
+                                                const previousSubscriptions = await db
+                                                    .select()
+                                                    .from(subscription)
+                                                    .where(eq(subscription.id, data.id))
+                                                    .limit(1);
+
+                                                if (previousSubscriptions.length > 0) {
+                                                    const prevSub = previousSubscriptions[0];
+                                                    // Check if currentPeriodStart has changed (indicates renewal)
+                                                    isRenewal = prevSub.currentPeriodStart.getTime() !== subscriptionData.currentPeriodStart.getTime();
+                                                }
+                                            }
+
+                                            // Determine action based on event type and subscription status
+                                            const shouldResetCredits =
+                                                type === 'subscription.created' ||
+                                                (type === 'subscription.active' && !existingPackage) ||
+                                                (type === 'subscription.updated' && isRenewal) ||
+                                                type === 'subscription.uncanceled';
+
+                                            const shouldDeactivate =
+                                                type === 'subscription.canceled' ||
+                                                type === 'subscription.revoked';
+
+                                            if (existingPackage) {
+                                                // Update existing package
+                                                const updateData: any = {
+                                                    expiresAt,
+                                                    validityPeriod: validityPeriodDays,
+                                                    updatedAt: new Date()
+                                                };
+
+                                                // Reset credits only on renewal or uncancellation
+                                                if (shouldResetCredits) {
+                                                    updateData.credits = credits;
+                                                    updateData.remainingCredits = credits;
+                                                    updateData.status = 'active';
+                                                    console.log('🔄 Resetting credits for subscription:', data.id, 'Reason:', type, isRenewal ? '(renewal)' : '');
+                                                } else if (shouldDeactivate) {
+                                                    // Don't reset credits on cancellation, just keep current state
+                                                    // The package will expire naturally at currentPeriodEnd
+                                                    console.log('⏸️  Subscription canceled/revoked, keeping current credits until expiration:', data.id);
+                                                } else {
+                                                    // For other updates (e.g., metadata changes), update credit amount if changed
+                                                    // but preserve remaining credits proportionally
+                                                    if (existingPackage.credits !== credits) {
+                                                        console.log('📊 Credit amount changed (upgrade/downgrade):', {
+                                                            old: existingPackage.credits,
+                                                            new: credits,
+                                                            remaining: existingPackage.remainingCredits
+                                                        });
+                                                        updateData.credits = credits;
+                                                        // Preserve remaining credits, but cap at new credit limit
+                                                        updateData.remainingCredits = Math.min(existingPackage.remainingCredits, credits);
+                                                    }
+                                                }
+
                                                 await db
                                                     .update(creditPackage)
-                                                    .set({
-                                                        credits,
-                                                        remainingCredits: credits, // Reset to full credits on renewal
-                                                        expiresAt,
-                                                        validityPeriod: validityPeriodDays,
-                                                        status: 'active',
-                                                        updatedAt: new Date()
-                                                    })
+                                                    .set(updateData)
                                                     .where(eq(creditPackage.sourceId, data.id));
 
-                                                console.log('✅ Updated and reset credit package for subscription:', data.id);
+                                                console.log('✅ Updated credit package for subscription:', data.id);
                                             } else {
                                                 // Create new package
+                                                const creditPackageId = `cp_sub_${data.id}_${Date.now()}`;
                                                 await db.insert(creditPackage).values({
                                                     id: creditPackageId,
                                                     userId: userId as string,
