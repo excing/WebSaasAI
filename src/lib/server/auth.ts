@@ -409,7 +409,10 @@ export const auth = betterAuth({
                                     discountId: data.discountId || null,
                                     subscriptionId: data.subscriptionId || null,
                                     checkoutId: data.checkoutId || null,
-                                    metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+                                    // Use product metadata if order metadata is empty
+                                    metadata: (data.metadata && Object.keys(data.metadata).length > 0)
+                                        ? JSON.stringify(data.metadata)
+                                        : (data.product?.metadata ? JSON.stringify(data.product.metadata) : null),
                                     userId: userId as string | null
                                 };
 
