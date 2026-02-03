@@ -303,19 +303,20 @@ export const auth = betterAuth({
                                             : metadataSource;
 
                                         const credits = parseCredits(metadata.credits);
-                                        const { expiresAt, validityPeriodDays } = parseValidityPeriod(
-                                            metadata.validity_period,
-                                            subscriptionData.currentPeriodEnd
-                                        );
+
+                                        // For subscriptions, always use currentPeriodEnd as expiration
+                                        // Ignore validity_period from metadata as subscriptions renew automatically
+                                        const expiresAt = subscriptionData.currentPeriodEnd;
+                                        const validityPeriodDays = null; // Not applicable for subscriptions
 
                                         if (credits && credits > 0) {
                                             console.log('💳 Creating credit package for subscription:', {
                                                 subscriptionId: data.id,
                                                 credits,
-                                                validityPeriodDays,
                                                 expiresAt: expiresAt.toISOString(),
-                                                rawCredits: metadata.credits,
-                                                rawValidityPeriod: metadata.validity_period
+                                                currentPeriodStart: subscriptionData.currentPeriodStart.toISOString(),
+                                                currentPeriodEnd: subscriptionData.currentPeriodEnd.toISOString(),
+                                                rawCredits: metadata.credits
                                             });
 
                                             // Generate unique ID for credit package
@@ -329,18 +330,20 @@ export const auth = betterAuth({
                                                 .limit(1);
 
                                             if (existingPackage.length > 0) {
-                                                // Update existing package
+                                                // Update existing package: reset credits and extend expiration
                                                 await db
                                                     .update(creditPackage)
                                                     .set({
                                                         credits,
+                                                        remainingCredits: credits, // Reset to full credits on renewal
                                                         expiresAt,
                                                         validityPeriod: validityPeriodDays,
+                                                        status: 'active',
                                                         updatedAt: new Date()
                                                     })
                                                     .where(eq(creditPackage.sourceId, data.id));
 
-                                                console.log('✅ Updated credit package for subscription:', data.id);
+                                                console.log('✅ Updated and reset credit package for subscription:', data.id);
                                             } else {
                                                 // Create new package
                                                 await db.insert(creditPackage).values({
